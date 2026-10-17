@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>課堂節拍器</title>
+<style>
+:root{
+  --bg:#15132a; --panel:#221f40; --line:#3a3666; --text:#f6f1ff; --muted:#a29ccc;
+  --down:#ff5d73; --sub:#ffb347; --beat:#38d0ff; --go:#ffd23f; --go-text:#1b1630;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0}
+body{
+  background:var(--bg);color:var(--text);
+  font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei","Heiti TC",system-ui,sans-serif;
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  overflow:auto;
+}
+main{
+  min-height:100dvh;display:grid;gap:clamp(12px,2.5vmin,28px);
+  grid-template-rows:minmax(0,1fr) auto;padding:clamp(12px,2.5vmin,28px);
+}
+@media (orientation:landscape) and (min-width:700px){
+  main{grid-template-rows:none;grid-template-columns:1fr 1fr;align-items:center}
+}
+.stage{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:clamp(12px,3vmin,32px);min-height:0}
+#dot{
+  --size:min(58vw,34dvh);
+  width:var(--size);height:var(--size);border-radius:50%;
+  background:var(--panel);border:4px solid var(--line);
+  display:grid;place-items:center;
+  font-size:calc(var(--size)*.42);font-weight:800;color:var(--muted);
+  font-variant-numeric:tabular-nums;user-select:none;
+}
+@media (orientation:landscape) and (min-width:700px){#dot{--size:min(40vw,64dvh)}}
+#pips{display:flex;gap:clamp(8px,2vmin,18px);min-height:28px}
+.pip{width:clamp(18px,3.6vmin,32px);height:clamp(18px,3.6vmin,32px);border-radius:50%;background:var(--panel);border:3px solid var(--line);transition:background .06s}
+.pip.on{background:var(--beat);border-color:var(--beat)}
+.pip.on.d{background:var(--down);border-color:var(--down)}
+.pip.on.s{background:var(--sub);border-color:var(--sub)}
+.panel{display:flex;flex-direction:column;gap:clamp(10px,2vmin,22px);width:100%;max-width:640px;margin:0 auto}
+.bpm{text-align:center;line-height:1}
+#bpmNum{font-size:clamp(88px,20vmin,200px);font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.unit{font-size:clamp(16px,3vmin,28px);color:var(--muted);margin-top:4px}
+.adj{display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center}
+button{font:inherit;color:inherit;cursor:pointer;border:0;touch-action:manipulation}
+button:focus-visible,input:focus-visible{outline:4px solid #fff;outline-offset:3px}
+.step{width:clamp(64px,10vmin,88px);height:clamp(64px,10vmin,88px);border-radius:18px;background:var(--panel);border:3px solid var(--line);font-size:2.4rem;font-weight:700}
+.step:active{background:var(--line)}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:56px;background:transparent;margin:0}
+input[type=range]::-webkit-slider-runnable-track{height:14px;border-radius:7px;background:var(--line)}
+input[type=range]::-moz-range-track{height:14px;border-radius:7px;background:var(--line)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:44px;height:44px;border-radius:50%;background:var(--text);margin-top:-15px;border:0}
+input[type=range]::-moz-range-thumb{width:44px;height:44px;border-radius:50%;background:var(--text);border:0}
+.sigs{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.sig{height:clamp(56px,9vmin,76px);border-radius:16px;background:var(--panel);border:3px solid var(--line);font-size:clamp(1.3rem,3.2vmin,1.9rem);font-weight:700}
+.sig[aria-pressed=true]{background:var(--text);color:var(--bg);border-color:var(--text)}
+#go{
+  width:100%;height:clamp(88px,15vmin,130px);border-radius:24px;
+  background:var(--go);color:var(--go-text);font-size:clamp(2rem,6vmin,3.2rem);font-weight:800;letter-spacing:.1em;
+}
+#go.playing{background:var(--down);color:#fff}
+#go:active{transform:scale(.985)}
+.hint{text-align:center;color:var(--muted);font-size:.95rem;margin:0}
+</style>
+</head>
+<body>
+<main>
+  <section class="stage" aria-label="節拍指示">
+    <div id="dot" aria-live="off">–</div>
+    <div id="pips"></div>
+  </section>
+
+  <section class="panel">
+    <div class="bpm">
+      <div id="bpmNum">100</div>
+      <div class="unit" id="unit">BPM（每分鐘拍數）</div>
+    </div>
+    <div class="adj">
+      <button class="step" id="minus" aria-label="減少速度">−</button>
+      <input type="range" id="slider" min="40" max="240" step="1" value="100" aria-label="速度 BPM">
+      <button class="step" id="plus" aria-label="增加速度">＋</button>
+    </div>
+    <div class="sigs" role="group" aria-label="拍號">
+      <button class="sig" data-sig="2/4" aria-pressed="false">2/4</button>
+      <button class="sig" data-sig="3/4" aria-pressed="false">3/4</button>
+      <button class="sig" data-sig="4/4" aria-pressed="true">4/4</button>
+      <button class="sig" data-sig="6/8" aria-pressed="false">6/8</button>
+    </div>
+    <button id="go">開始</button>
+    <p class="hint">空白鍵：開始／停止　方向鍵：調整速度</p>
+  </section>
+</main>
+
+<script>
+(() => {
+  const SIGS = { "2/4": 2, "3/4": 3, "4/4": 4, "6/8": 6 };
+  const COL = { 2: "#ff5d73", 1: "#ffb347", 0: "#38d0ff" };
+  const MIN = 40, MAX = 240;
+
+  let bpm = 100, sig = "4/4";
+  let ctx = null, playing = false;
+  let nextTime = 0, beatIdx = 0, timer = null;
+  let queue = [], rafId = null, wakeLock = null;
+
+  const $ = id => document.getElementById(id);
+  const dot = $("dot"), pips = $("pips"), bpmNum = $("bpmNum"), slider = $("slider"), go = $("go");
+
+  // 重音層級：2=第1拍、1=6/8 的第4拍（次重音）、0=一般拍
+  const level = (i, s) => i === 0 ? 2 : (s === "6/8" && i === 3 ? 1 : 0);
+
+  function buildPips() {
+    pips.innerHTML = "";
+    for (let i = 0; i < SIGS[sig]; i++) {
+      const p = document.createElement("div");
+      p.className = "pip";
+      pips.appendChild(p);
+    }
+  }
+
+  function setBpm(v) {
+    bpm = Math.max(MIN, Math.min(MAX, Math.round(v)));
+    bpmNum.textContent = bpm;
+    slider.value = bpm;
+    $("unit").textContent = sig === "6/8" ? "BPM（每分鐘八分音符數）" : "BPM（每分鐘拍數）";
+  }
+
+  function setSig(s) {
+    sig = s;
+    document.querySelectorAll(".sig").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.sig === s)));
+    buildPips();
+    setBpm(bpm);
+    if (playing) { beatIdx = 0; queue = []; }   // 從下一拍起重新以第 1 拍開始
+  }
+
+  // ---- 音訊 ----
+  function click(time, lv) {
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    const freq = lv === 2 ? 1200 : lv === 1 ? 1000 : 800;
+    const vol = lv === 2 ? 1 : lv === 1 ? 0.8 : 0.6;
+    o.type = "triangle";
+    o.frequency.value = freq;
+    g.gain.setValueAtTime(0.0001, time);
+    g.gain.exponentialRampToValueAtTime(vol, time + 0.002);
+    g.gain.exponentialRampToValueAtTime(0.0001, time + 0.07);
+    o.connect(g).connect(ctx.destination);
+    o.start(time);
+    o.stop(time + 0.09);
+  }
+
+  function scheduler() {
+    const beats = SIGS[sig];
+    while (nextTime < ctx.currentTime + 0.1) {
+      const lv = level(beatIdx, sig);
+      click(nextTime, lv);
+      queue.push({ time: nextTime, idx: beatIdx, lv, beats });
+      nextTime += 60 / bpm;
+      beatIdx = (beatIdx + 1) % beats;
+    }
+    timer = setTimeout(scheduler, 25);
+  }
+
+  // ---- 視覺（以音訊時鐘對齊）----
+  function draw() {
+    const now = ctx.currentTime - (ctx.outputLatency || 0);
+    while (queue.length && queue[0].time <= now) {
+      const e = queue.shift();
+      if (queue.length && queue[0].time <= now) continue; // 落後時只顯示最新一拍
+      flash(e);
+    }
+    rafId = requestAnimationFrame(draw);
+  }
+
+  function flash(e) {
+    if (pips.children.length !== e.beats) return;
+    [...pips.children].forEach((p, i) => {
+      p.className = "pip" + (i === e.idx ? " on" + (e.lv === 2 ? " d" : e.lv === 1 ? " s" : "") : "");
+    });
+    const c = COL[e.lv];
+    dot.textContent = e.idx + 1;
+    dot.animate(
+      [
+        { background: c, borderColor: c, color: "#15132a", transform: e.lv === 2 ? "scale(1.12)" : "scale(1.05)", boxShadow: `0 0 80px ${c}` },
+        { background: "#221f40", borderColor: "#3a3666", color: "#a29ccc", transform: "scale(1)", boxShadow: "0 0 0 transparent" }
+      ],
+      { duration: Math.min(280, 60000 / bpm * 0.8), easing: "ease-out" }
+    );
+  }
+
+  async function lockScreen() {
+    try { if ("wakeLock" in navigator && playing) wakeLock = await navigator.wakeLock.request("screen"); } catch (_) {}
+  }
+
+  async function start() {
+    if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state !== "running") await ctx.resume();
+    playing = true;
+    beatIdx = 0; queue = [];
+    nextTime = ctx.currentTime + 0.08;
+    scheduler();
+    rafId = requestAnimationFrame(draw);
+    go.textContent = "停止"; go.classList.add("playing");
+    lockScreen();
+  }
+
+  function stop() {
+    playing = false;
+    clearTimeout(timer); cancelAnimationFrame(rafId);
+    queue = [];
+    go.textContent = "開始"; go.classList.remove("playing");
+    dot.textContent = "–";
+    [...pips.children].forEach(p => p.className = "pip");
+    try { wakeLock && wakeLock.release(); } catch (_) {}
+    wakeLock = null;
+  }
+
+  const toggle = () => playing ? stop() : start();
+
+  // ---- 操作 ----
+  go.addEventListener("click", toggle);
+  slider.addEventListener("input", () => setBpm(+slider.value));
+  document.querySelectorAll(".sig").forEach(b => b.addEventListener("click", () => setSig(b.dataset.sig)));
+
+  function hold(btn, delta) {
+    let t1 = null, t2 = null;
+    const clear = () => { clearTimeout(t1); clearInterval(t2); t1 = t2 = null; };
+    btn.addEventListener("pointerdown", e => {
+      e.preventDefault();
+      setBpm(bpm + delta);
+      t1 = setTimeout(() => { t2 = setInterval(() => setBpm(bpm + delta), 70); }, 400);
+    });
+    ["pointerup", "pointerleave", "pointercancel"].forEach(ev => btn.addEventListener(ev, clear));
+    btn.addEventListener("click", e => { if (e.detail === 0) setBpm(bpm + delta); }); // 鍵盤操作
+  }
+  hold($("minus"), -1);
+  hold($("plus"), 1);
+
+  document.addEventListener("keydown", e => {
+    const tag = e.target.tagName;
+    if (e.code === "Space" && tag !== "BUTTON" && tag !== "INPUT") { e.preventDefault(); toggle(); }
+    if (tag !== "INPUT" && (e.key === "ArrowUp" || e.key === "ArrowRight")) { e.preventDefault(); setBpm(bpm + (e.shiftKey ? 10 : 1)); }
+    if (tag !== "INPUT" && (e.key === "ArrowDown" || e.key === "ArrowLeft")) { e.preventDefault(); setBpm(bpm - (e.shiftKey ? 10 : 1)); }
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && playing) lockScreen();
+  });
+
+  buildPips();
+  setBpm(bpm);
+})();
+</script>
+</body>
+</html>
